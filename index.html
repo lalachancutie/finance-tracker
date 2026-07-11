@@ -171,6 +171,24 @@
     .today{text-align:left;}
   }
 
+  .payday-group{margin-bottom:18px;}
+  .payday-group:last-child{margin-bottom:0;}
+  .payday-group .pg-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line);}
+  .payday-group .pg-title{font-weight:600;font-size:14px;}
+  .payday-group .pg-total{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink-soft);}
+  .pay-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;}
+  .pay-item:last-child{border-bottom:none;}
+  .pay-item input[type="checkbox"]{width:18px;height:18px;flex-shrink:0;accent-color:var(--forest);}
+  .pay-item .pi-name{flex:1;}
+  .pay-item .pi-name .pi-meta{display:block;font-size:11px;color:var(--ink-soft);}
+  .pay-item.paid .pi-name{color:var(--ink-soft);text-decoration:line-through;}
+  .pay-item .pi-amt{font-family:'IBM Plex Mono',monospace;}
+  .remaining-box{display:flex;justify-content:space-between;align-items:center;background:var(--paper-dim);border-radius:9px;padding:12px 14px;margin-top:12px;}
+  .remaining-box .rb-label{font-size:13px;color:var(--ink-soft);}
+  .remaining-box .rb-value{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:500;}
+  .remaining-box .rb-value.negative{color:var(--brick);}
+  .remaining-box .rb-value.positive{color:var(--forest);}
+
   .auth-screen{max-width:380px;margin:60px auto;padding:0 20px;}
   .auth-card{background:var(--paper);color:var(--ink);border-radius:12px;padding:26px 24px;box-shadow:var(--shadow);}
   .auth-card h1{font-family:'Fraunces',serif;font-weight:600;font-size:24px;margin:0 0 4px;}
@@ -228,6 +246,7 @@
 
   <div class="tabs">
     <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="income">Income</button>
     <button class="tab" data-tab="bills">Bills</button>
     <button class="tab" data-tab="subs">Subscriptions</button>
     <button class="tab" data-tab="cards">Credit cards</button>
@@ -236,6 +255,10 @@
 
   <div id="panel-overview" class="panel active">
     <div class="grid-stats" id="overview-stats"></div>
+    <div class="card">
+      <h2>Payment reminders</h2>
+      <div id="payment-reminders"></div>
+    </div>
     <div class="card">
       <h2>This month's runway</h2>
       <div class="runway-wrap"><svg class="runway" id="runway-svg" viewBox="0 0 640 90"></svg></div>
@@ -248,6 +271,46 @@
     <div class="card">
       <h2>Next 14 days</h2>
       <ul class="upcoming-list" id="upcoming-list"></ul>
+    </div>
+  </div>
+
+  <div id="panel-income" class="panel">
+    <div class="card">
+      <h2>Your pay schedule</h2>
+      <div class="form-row">
+        <div>
+          <label>How often are you paid?</label>
+          <select id="income-frequency" onchange="onIncomeFrequencyChange()">
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+        <div id="income-weekly-field">
+          <label>Payday</label>
+          <select id="income-weekly-day">
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+        </div>
+        <div id="income-monthly-field" style="display:none;">
+          <label>Payday (date of month)</label>
+          <input id="income-monthly-date" type="number" min="1" max="31" placeholder="15">
+        </div>
+        <div>
+          <label>Amount per paycheck</label>
+          <input id="income-amount" type="number" min="0" step="0.01" placeholder="8000">
+        </div>
+      </div>
+      <button class="btn" onclick="saveIncome()">Save pay schedule</button>
+    </div>
+    <div class="card">
+      <h2>Upcoming paydays</h2>
+      <ul class="upcoming-list" id="upcoming-paydays-list"></ul>
     </div>
   </div>
 
@@ -298,17 +361,22 @@
         <div><label>APR (%)</label><input id="card-apr" type="number" min="0" step="0.01" placeholder="36"></div>
         <div><label>Minimum payment</label><input id="card-min" type="number" min="0" step="0.01" placeholder="1750"></div>
         <div><label>Credit limit</label><input id="card-limit" type="number" min="0" step="0.01" placeholder="50000"></div>
+        <div><label>Payment due day of month</label><input id="card-dueday" type="number" min="1" max="31" placeholder="10"></div>
       </div>
       <button class="btn" onclick="addCard()">Add card</button>
     </div>
     <div class="card">
       <h2>All cards</h2>
-      <table id="cards-table"><thead><tr><th>Name</th><th class="num">Balance</th><th class="num">APR</th><th class="num">Min pmt</th><th>Utilization</th><th></th></tr></thead><tbody></tbody></table>
+      <table id="cards-table"><thead><tr><th>Name</th><th class="num">Balance</th><th class="num">APR</th><th class="num">Min pmt</th><th>Due day</th><th>Utilization</th><th></th></tr></thead><tbody></tbody></table>
       <div class="empty" id="cards-empty" style="display:none;">No cards yet. Add your first one above.</div>
     </div>
   </div>
 
   <div id="panel-payoff" class="panel">
+    <div class="card" id="payoff-thispayday">
+      <h2>This payday</h2>
+      <div id="payoff-thispayday-content"></div>
+    </div>
     <div class="card">
       <h2>Choose a strategy</h2>
       <div class="strategy-toggle">
@@ -517,7 +585,7 @@ function setSyncStatus(syncing, text){
   document.getElementById('sync-text').textContent = text;
 }
 
-let state = { bills: [], subs: [], cards: [], strategy: 'avalanche' };
+let state = { bills: [], subs: [], cards: [], strategy: 'avalanche', income: { frequency:'weekly', weeklyDay:6, monthlyDate:15, amount:0 }, paidLog: {} };
 const fmt = n => '₱' + Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmt0 = n => '₱' + Math.round(Number(n||0)).toLocaleString();
 const uid = () => Math.random().toString(36).slice(2,9);
@@ -586,9 +654,11 @@ function addCard(){
   const apr = parseFloat(document.getElementById('card-apr').value);
   const min = parseFloat(document.getElementById('card-min').value);
   const limit = parseFloat(document.getElementById('card-limit').value) || 0;
+  const dueDayRaw = document.getElementById('card-dueday').value;
+  const dueDay = dueDayRaw ? parseInt(dueDayRaw) : null;
   if(!name || isNaN(balance) || isNaN(apr) || isNaN(min)) return;
-  state.cards.push({id:uid(), name, balance, apr, min, limit});
-  ['card-name','card-balance','card-apr','card-min','card-limit'].forEach(id=>document.getElementById(id).value='');
+  state.cards.push({id:uid(), name, balance, apr, min, limit, dueDay});
+  ['card-name','card-balance','card-apr','card-min','card-limit','card-dueday'].forEach(id=>document.getElementById(id).value='');
   saveState(); renderAll();
 }
 function removeCard(id){ state.cards = state.cards.filter(c=>c.id!==id); saveState(); renderAll(); }
@@ -600,6 +670,206 @@ function updateStrategyButtons(){
 }
 
 function monthlyEquivSub(s){ return s.cycle==='yearly' ? s.amount/12 : s.amount; }
+
+function addDays(d, n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function addMonths(d, n){ const r = new Date(d); r.setMonth(r.getMonth()+n); return r; }
+function clampDateInMonth(year, month, day){
+  const lastDay = new Date(year, month+1, 0).getDate();
+  return new Date(year, month, Math.min(day, lastDay));
+}
+
+function onIncomeFrequencyChange(){
+  const freq = document.getElementById('income-frequency').value;
+  document.getElementById('income-weekly-field').style.display = freq==='weekly' ? 'block' : 'none';
+  document.getElementById('income-monthly-field').style.display = freq==='monthly' ? 'block' : 'none';
+}
+function renderIncomeForm(){
+  const inc = state.income;
+  document.getElementById('income-frequency').value = inc.frequency;
+  document.getElementById('income-weekly-day').value = String(inc.weeklyDay);
+  document.getElementById('income-monthly-date').value = inc.monthlyDate;
+  document.getElementById('income-amount').value = inc.amount || '';
+  onIncomeFrequencyChange();
+}
+function saveIncome(){
+  const frequency = document.getElementById('income-frequency').value;
+  const weeklyDay = parseInt(document.getElementById('income-weekly-day').value);
+  const monthlyDate = parseInt(document.getElementById('income-monthly-date').value) || 15;
+  const amount = parseFloat(document.getElementById('income-amount').value) || 0;
+  state.income = { frequency, weeklyDay, monthlyDate, amount };
+  saveState();
+  renderPaydaySections();
+}
+
+function getUpcomingPaydays(count){
+  const inc = state.income;
+  const today = stripTime(new Date());
+  let paydays = [];
+  if(inc.frequency==='weekly'){
+    let diff = (inc.weeklyDay - today.getDay() + 7) % 7;
+    let d = addDays(today, diff);
+    for(let i=0;i<count;i++){ paydays.push(d); d = addDays(d,7); }
+  } else {
+    let d = clampDateInMonth(today.getFullYear(), today.getMonth(), inc.monthlyDate);
+    if(d < today) d = clampDateInMonth(today.getFullYear(), today.getMonth()+1, inc.monthlyDate);
+    for(let i=0;i<count;i++){
+      paydays.push(d);
+      d = clampDateInMonth(d.getFullYear(), d.getMonth()+1, inc.monthlyDate);
+    }
+  }
+  return paydays;
+}
+
+function getAssignedPayday(dueDate){
+  const inc = state.income;
+  const today = stripTime(new Date());
+  const due = stripTime(dueDate);
+  if(inc.frequency==='weekly'){
+    let diff = (due.getDay() - inc.weeklyDay + 7) % 7;
+    let payday = addDays(due, -diff);
+    while(payday < today) payday = addDays(payday, 7);
+    return payday;
+  } else {
+    let candidate = clampDateInMonth(due.getFullYear(), due.getMonth(), inc.monthlyDate);
+    if(candidate > due) candidate = clampDateInMonth(due.getFullYear(), due.getMonth()-1, inc.monthlyDate);
+    while(candidate < today) candidate = clampDateInMonth(candidate.getFullYear(), candidate.getMonth()+1, inc.monthlyDate);
+    return candidate;
+  }
+}
+
+function nextDueDateForSub(s){
+  let d = stripTime(new Date(s.renew));
+  const today = stripTime(new Date());
+  if(s.cycle==='yearly'){
+    while(d < today) d = addMonths(d, 12);
+  } else {
+    while(d < today) d = addMonths(d, 1);
+  }
+  return d;
+}
+function nextDueDateForCard(c){
+  if(!c.dueDay) return null;
+  return nextOccurrenceForDay(c.dueDay);
+}
+
+function buildPaymentItems(){
+  let items = [];
+  state.bills.forEach(b=>{
+    const due = nextOccurrenceForDay(b.day);
+    items.push({ type:'bill', id:b.id, name:b.name, amount:b.amount, due });
+  });
+  state.subs.forEach(s=>{
+    const due = nextDueDateForSub(s);
+    items.push({ type:'sub', id:s.id, name:s.name, amount:s.amount, due });
+  });
+  state.cards.forEach(c=>{
+    const due = nextDueDateForCard(c);
+    if(due) items.push({ type:'card', id:c.id, name:c.name+' (min payment)', amount:c.min, due });
+  });
+  items.forEach(it=>{
+    it.payday = getAssignedPayday(it.due);
+    it.key = `${it.type}:${it.id}:${it.due.toISOString().slice(0,10)}`;
+    it.paid = !!state.paidLog[it.key];
+  });
+  return items;
+}
+
+function buildPaymentGroups(maxGroups){
+  const items = buildPaymentItems();
+  const byPayday = {};
+  items.forEach(it=>{
+    const key = it.payday.toISOString().slice(0,10);
+    if(!byPayday[key]) byPayday[key] = { payday: it.payday, items: [] };
+    byPayday[key].items.push(it);
+  });
+  const groups = Object.values(byPayday).sort((a,b)=>a.payday-b.payday);
+  groups.forEach(g=>{
+    g.items.sort((a,b)=>a.due-b.due);
+    g.total = g.items.reduce((s,i)=>s+i.amount,0);
+    g.unpaidTotal = g.items.filter(i=>!i.paid).reduce((s,i)=>s+i.amount,0);
+  });
+  return maxGroups ? groups.slice(0, maxGroups) : groups;
+}
+
+function togglePaid(key){
+  state.paidLog[key] = !state.paidLog[key];
+  saveState();
+  renderPaydaySections();
+}
+
+function paydayGroupHTML(g, todayLabelIfFirst){
+  const isToday = stripTime(g.payday).getTime() === stripTime(new Date()).getTime();
+  const label = g.payday.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'});
+  const itemsHTML = g.items.map(it=>`
+    <div class="pay-item ${it.paid?'paid':''}">
+      <input type="checkbox" ${it.paid?'checked':''} onchange="togglePaid('${it.key}')">
+      <div class="pi-name">${it.name}<span class="pi-meta">${it.type==='bill'?'Bill':it.type==='sub'?'Subscription':'Credit card'} · due ${it.due.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>
+      <div class="pi-amt">${fmt(it.amount)}</div>
+    </div>`).join('');
+  return `
+    <div class="payday-group">
+      <div class="pg-header">
+        <div class="pg-title">${isToday?'Today':label}${isToday?' · '+label:''}</div>
+        <div class="pg-total">${fmt(g.total)}</div>
+      </div>
+      ${itemsHTML}
+    </div>`;
+}
+
+function renderPaymentReminders(){
+  const el = document.getElementById('payment-reminders');
+  const groups = buildPaymentGroups(3);
+  if(groups.length===0){ el.innerHTML = '<div class="empty">Add bills, subscriptions, or card due dates to see payment reminders here.</div>'; return; }
+  el.innerHTML = groups.map(g=>paydayGroupHTML(g)).join('');
+}
+
+function renderPayoffThisPayday(){
+  const el = document.getElementById('payoff-thispayday-content');
+  const groups = buildPaymentGroups(1);
+  if(groups.length===0){
+    el.innerHTML = '<div class="empty">Add bills, subscriptions, or card due dates, plus your pay schedule, to see what to pay this payday.</div>';
+    return;
+  }
+  const g = groups[0];
+  const income = state.income.amount || 0;
+  const remaining = income - g.unpaidTotal;
+  const label = g.payday.toLocaleDateString(undefined,{weekday:'long', month:'long', day:'numeric'});
+  const itemsHTML = g.items.map(it=>`
+    <div class="pay-item ${it.paid?'paid':''}">
+      <input type="checkbox" ${it.paid?'checked':''} onchange="togglePaid('${it.key}')">
+      <div class="pi-name">${it.name}<span class="pi-meta">${it.type==='bill'?'Bill':it.type==='sub'?'Subscription':'Credit card'} · due ${it.due.toLocaleDateString(undefined,{month:'short',day:'numeric'})}</span></div>
+      <div class="pi-amt">${fmt(it.amount)}</div>
+    </div>`).join('');
+  el.innerHTML = `
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px;">${label}</div>
+    <div class="grid-stats" style="margin-bottom:14px;">
+      <div class="stat"><div class="label">Income this payday</div><div class="value">${fmt0(income)}</div></div>
+      <div class="stat"><div class="label">Total to pay</div><div class="value" style="color:var(--brick);">${fmt0(g.total)}</div></div>
+    </div>
+    ${itemsHTML}
+    <div class="remaining-box">
+      <div class="rb-label">Remaining after these payments</div>
+      <div class="rb-value ${remaining<0?'negative':'positive'}">${fmt0(remaining)}</div>
+    </div>
+  `;
+}
+
+function renderUpcomingPaydaysList(){
+  const el = document.getElementById('upcoming-paydays-list');
+  if(!el) return;
+  const paydays = getUpcomingPaydays(6);
+  el.innerHTML = paydays.map(d=>`
+    <li>
+      <div class="name">${d.toLocaleDateString(undefined,{weekday:'long', month:'short', day:'numeric'})}</div>
+      <div class="amt">${fmt(state.income.amount||0)}</div>
+    </li>`).join('');
+}
+
+function renderPaydaySections(){
+  renderPaymentReminders();
+  renderPayoffThisPayday();
+  renderUpcomingPaydaysList();
+}
 
 function nextOccurrenceForDay(day){
   const today = new Date();
@@ -620,6 +890,8 @@ function renderAll(){
   renderCardsTable();
   updateStrategyButtons();
   renderPayoffEmptyState();
+  renderIncomeForm();
+  renderPaydaySections();
 }
 
 function renderTodayLine(){
@@ -749,6 +1021,7 @@ function renderCardsTable(){
       <td class="num">${fmt(c.balance)}</td>
       <td class="num">${c.apr}%</td>
       <td class="num">${fmt(c.min)}</td>
+      <td>${c.dueDay || '—'}</td>
       <td>${util!==null? Math.round(util)+'%':'—'}
         ${util!==null?`<span class="util-bar"><span class="fill" style="width:${Math.min(100,util)}%;background:${utilColor}"></span></span>`:''}
       </td>
