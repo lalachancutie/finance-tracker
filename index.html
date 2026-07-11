@@ -734,6 +734,9 @@ function formatMonths(m){
   const y = Math.floor(m/12), rem = m%12;
   if(y===0) return rem+' mo';
   if(rem===0) return y+' yr';
+  return y+' yr '+rem+' mo';
+}
+
 (async function init(){
   const { data } = await sb.auth.getSession();
   if(data.session){
