@@ -181,6 +181,7 @@
   .auth-msg.success{background:var(--forest-dim);color:var(--forest);display:block;}
   .auth-toggle{font-size:13px;color:var(--ink-soft);margin-top:14px;text-align:center;}
   .auth-toggle button{background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;padding:0;}
+  .auth-link-btn{background:none;border:none;color:var(--gold);text-decoration:underline;cursor:pointer;font-size:13px;font-family:'Inter',sans-serif;padding:0;}
   .sync-status{font-size:12px;color:#B9C3D6;display:flex;align-items:center;gap:6px;}
   .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--forest);}
   .sync-dot.syncing{background:var(--gold);}
@@ -192,14 +193,20 @@
 <div class="auth-screen" id="auth-screen">
   <div class="auth-card">
     <h1>Ledger</h1>
-    <div class="sub">Sign in to sync your bills, subscriptions & cards across devices.</div>
+    <div class="sub" id="auth-sub">Sign in to sync your bills, subscriptions & cards across devices.</div>
     <div class="auth-msg" id="auth-msg"></div>
-    <div class="auth-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com"></div>
-    <div class="auth-field"><label>Password</label><input id="auth-password" type="password" placeholder="At least 6 characters"></div>
+    <div class="auth-field" id="auth-email-field"><label>Email</label><input id="auth-email" type="email" placeholder="you@email.com"></div>
+    <div class="auth-field" id="auth-password-field"><label id="auth-password-label">Password</label><input id="auth-password" type="password" placeholder="At least 6 characters"></div>
+    <div id="auth-forgot-wrap" style="text-align:right;margin:-6px 0 12px;">
+      <button onclick="setAuthMode('forgot')" class="auth-link-btn">Forgot password?</button>
+    </div>
     <button class="btn gold" id="auth-submit" style="width:100%;" onclick="submitAuth()">Sign in</button>
-    <div class="auth-toggle">
+    <div class="auth-toggle" id="auth-toggle-row">
       <span id="auth-toggle-text">Don't have an account?</span>
       <button onclick="toggleAuthMode()" id="auth-toggle-btn">Sign up</button>
+    </div>
+    <div class="auth-toggle" id="auth-back-row" style="display:none;">
+      <button onclick="setAuthMode('signin')" class="auth-link-btn">Back to sign in</button>
     </div>
   </div>
 </div>
@@ -356,12 +363,53 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let authMode = 'signin';
 let currentUser = null;
 
-function toggleAuthMode(){
-  authMode = authMode==='signin' ? 'signup' : 'signin';
-  document.getElementById('auth-submit').textContent = authMode==='signin' ? 'Sign in' : 'Create account';
-  document.getElementById('auth-toggle-text').textContent = authMode==='signin' ? "Don't have an account?" : 'Already have an account?';
-  document.getElementById('auth-toggle-btn').textContent = authMode==='signin' ? 'Sign up' : 'Sign in';
+function setAuthMode(mode){
+  authMode = mode;
   hideAuthMsg();
+  const emailField = document.getElementById('auth-email-field');
+  const passwordField = document.getElementById('auth-password-field');
+  const passwordLabel = document.getElementById('auth-password-label');
+  const passwordInput = document.getElementById('auth-password');
+  const forgotWrap = document.getElementById('auth-forgot-wrap');
+  const toggleRow = document.getElementById('auth-toggle-row');
+  const backRow = document.getElementById('auth-back-row');
+  const sub = document.getElementById('auth-sub');
+  const submitBtn = document.getElementById('auth-submit');
+  const toggleText = document.getElementById('auth-toggle-text');
+  const toggleBtn = document.getElementById('auth-toggle-btn');
+
+  emailField.style.display = mode==='recovery' ? 'none' : 'block';
+  passwordField.style.display = mode==='forgot' ? 'none' : 'block';
+  forgotWrap.style.display = mode==='signin' ? 'block' : 'none';
+  toggleRow.style.display = (mode==='signin' || mode==='signup') ? 'flex' : 'none';
+  backRow.style.display = (mode==='forgot') ? 'flex' : 'none';
+
+  if(mode==='signin'){
+    sub.textContent = 'Sign in to sync your bills, subscriptions & cards across devices.';
+    passwordLabel.textContent = 'Password';
+    passwordInput.placeholder = 'At least 6 characters';
+    submitBtn.textContent = 'Sign in';
+    toggleText.textContent = "Don't have an account?";
+    toggleBtn.textContent = 'Sign up';
+  } else if(mode==='signup'){
+    sub.textContent = 'Create an account to sync your bills, subscriptions & cards across devices.';
+    passwordLabel.textContent = 'Password';
+    passwordInput.placeholder = 'At least 6 characters';
+    submitBtn.textContent = 'Create account';
+    toggleText.textContent = 'Already have an account?';
+    toggleBtn.textContent = 'Sign in';
+  } else if(mode==='forgot'){
+    sub.textContent = "Enter your email and we'll send you a reset link.";
+    submitBtn.textContent = 'Send reset link';
+  } else if(mode==='recovery'){
+    sub.textContent = 'Choose a new password for your account.';
+    passwordLabel.textContent = 'New password';
+    passwordInput.placeholder = 'At least 6 characters';
+    submitBtn.textContent = 'Update password';
+  }
+}
+function toggleAuthMode(){
+  setAuthMode(authMode==='signin' ? 'signup' : 'signin');
 }
 function showAuthMsg(text, type){
   const el = document.getElementById('auth-msg');
@@ -377,6 +425,43 @@ function hideAuthMsg(){
 async function submitAuth(){
   const email = document.getElementById('auth-email').value.trim();
   const password = document.getElementById('auth-password').value;
+
+  if(authMode==='forgot'){
+    if(!email){ showAuthMsg('Enter your email.', 'error'); return; }
+    hideAuthMsg();
+    const btn = document.getElementById('auth-submit');
+    btn.disabled = true;
+    try{
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+      if(error) throw error;
+      showAuthMsg('Check your email for a reset link.', 'success');
+    }catch(e){
+      showAuthMsg(e.message || 'Something went wrong.', 'error');
+    }finally{
+      btn.disabled = false;
+    }
+    return;
+  }
+
+  if(authMode==='recovery'){
+    if(!password || password.length<6){ showAuthMsg('Enter a new password (at least 6 characters).', 'error'); return; }
+    hideAuthMsg();
+    const btn = document.getElementById('auth-submit');
+    btn.disabled = true;
+    try{
+      const { data, error } = await sb.auth.updateUser({ password });
+      if(error) throw error;
+      showAuthMsg('Password updated.', 'success');
+      await onAuthed(data.user);
+    }catch(e){
+      showAuthMsg(e.message || 'Something went wrong.', 'error');
+    }finally{
+      btn.disabled = false;
+    }
+    return;
+  }
+
   if(!email || !password){ showAuthMsg('Enter an email and password.', 'error'); return; }
   hideAuthMsg();
   const btn = document.getElementById('auth-submit');
@@ -389,7 +474,7 @@ async function submitAuth(){
         await onAuthed(data.session.user);
       } else {
         showAuthMsg('Check your email to confirm your account, then sign in.', 'success');
-        toggleAuthMode();
+        setAuthMode('signin');
       }
     } else {
       const { data, error } = await sb.auth.signInWithPassword({ email, password });
@@ -402,6 +487,14 @@ async function submitAuth(){
     btn.disabled = false;
   }
 }
+
+sb.auth.onAuthStateChange((event, session) => {
+  if(event === 'PASSWORD_RECOVERY'){
+    document.getElementById('main-app').style.display = 'none';
+    document.getElementById('auth-screen').style.display = 'block';
+    setAuthMode('recovery');
+  }
+});
 
 async function signOut(){
   await sb.auth.signOut();
